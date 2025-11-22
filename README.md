@@ -25,7 +25,7 @@ A motivação central reside na exploração da visualização de música atrav�
 * [JavaScript](https://developer.mozilla.org/pt-BR/docs/Web/JavaScript)
 * [p5.js](https://p5js.org/) (Core)
 * **WEBGL** (Renderização 3D)
-* **p5.sound** (Análise de áudio: Amplitude, FFT, PeakDetect)
+* **p5.sound** (Análise de áudio: Amplitude, FFT)
 
 ## Como Funciona (Implementação)
 
