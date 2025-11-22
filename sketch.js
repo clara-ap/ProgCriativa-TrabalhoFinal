@@ -1,204 +1,233 @@
-/*
- * PROJETO 1: SINFONIA NATURAL (Ecossistema Musical)
- * * Versão "Final"
- * * INSTRUÇÕES:
- * 1. Adicione um arquivo MP3 a este sketch.
- * 2. Mude o nome 'sua-musica.mp3' no código abaixo.
- * 3. Clique na tela para tocar/pausar a música.
- */
+// Variáveis para os botões
+let button, buttonPlaySong;
+let showParticles = false;
+let buttonsHeight = 50;
 
-let som, fft, amplitude;
+// Variáveis para a música
+let song;
+let amplitude;
+let fft;
+let level, bass, treble, centroid;
+//let peakDetect;
 
-// Aluno A (FFT)
-let particulas = [];
-let corFundo;
+// Variáveis para a onda 
+let boxWidth = 3;
+let boxHeight = 3;
+let boxDepth = 3;
+let waveAngle = 0;
+let activeBoxes = [];
+let gridMinX, gridMaxX;
 
-// Aluno C (Amplitude)
-let aguaViva;
+// Variáveis para a esfera 
+let sphereAngle = 0;
+let sphereRadius = 1600;
+//let currentRadius = 1600;
+
+// Variáveis para o cubo
+let cubeAngle = 0;
+
+// Variáveis para as partículas 
+let circles = [];
+let baseRadius;
+let numPoints = 180;
+
 
 function preload() {
-  soundFormats('mp3', 'wav');
-  som = loadSound('Tame Impala - The Less I Know The Better.mp3', musicaCarregada);
-}
-
-function musicaCarregada() {
-  console.log("Música carregada!");
+  soundFormats('mp3');
+  song = loadSound('Dont You Worry Child (Radio Edit).mp3');
 }
 
 function setup() {
-  createCanvas(windowWidth, windowHeight);
-  colorMode(HSB, 360, 100, 100, 100);
-  noStroke();
+  createCanvas(windowWidth, windowHeight - buttonsHeight, WEBGL);
+  angleMode(DEGREES);
+  colorMode(HSB, 360, 100, 100, 255);
+  noFill();
+  stroke(50); 
+  
+  buttonPlaySong = createButton("Clique para tocar/pausar a música.");
+  buttonPlaySong.mousePressed(controlSong);
+  buttonPlaySong.style("width", "300px");
+  buttonPlaySong.style("height", buttonsHeight + "px");
+  buttonPlaySong.style("font-size", "18px");
+  
+  button = createButton("Clique para liberar as partículas.");
+  button.mousePressed(() => showParticles = !showParticles);
+  button.style("width", "300px");
+  button.style("height", buttonsHeight + "px");
+  button.style("font-size", "18px");
 
-  fft = new p5.FFT(0.8, 512);
-  amplitude = new p5.Amplitude(0.9);
+  amplitude = new p5.Amplitude();
+  amplitude.setInput(song);
 
-  // Aluno C: Instancia a criatura
-  aguaViva = new Jellyfish(width / 2, height / 2);
+  fft = new p5.FFT(0.8, 512); 
+  fft.setInput(song);
+  
+  peakDetect = new p5.PeakDetect(20, 140, 0.35, 20);
 
-  // Aluno A: Cor inicial do fundo
-  corFundo = color(220, 80, 10);
+  gridMinX = -floor(width / 40);
+  gridMaxX = floor(width / 40);
+  
+  for (let i = gridMinX; i < gridMaxX; i++) {
+    for (let j = -floor(height / 45); j < floor(height / 45); j++) {
+      if (random() < 0.6) {
+        activeBoxes.push(createVector(i, j));
+      }
+    }
+  }
 }
 
 function draw() {
-  // --- ANÁLISE DE SOM ---
-  let espectro = fft.analyze();
-  let waveform = fft.waveform();
-  let amp = amplitude.getLevel();
+  background(0);
+
+  let spectrum = fft.analyze(); 
+  peakDetect.update(fft); 
+  level = amplitude.getLevel();
   
-  // =============================================
-  // ALUNO A: Atmosfera e Partículas (FFT)
-  // =============================================
-  let graves = fft.getEnergy("bass");
-  let agudos = fft.getEnergy("treble");
-
-  // Mapeia graves para o brilho do fundo, com transição suave
-  let brilhoFundoAlvo = map(graves, 0, 255, 5, 25);
-  corFundo = lerpColor(corFundo, color(220, 80, brilhoFundoAlvo), 0.1);
-  background(corFundo);
-
-  // Gera partículas com base nos agudos
-  if (random(255) < agudos * 0.5) {
-    particulas.push(new Particle(random(width), height * 0.9));
+  // Pega os 3 componentes de frequência para as cores
+  bass = fft.getEnergy("bass");
+  treble = fft.getEnergy("treble");
+  centroid = fft.getCentroid(); 
+  
+  if (showParticles) {
+    drawParticles();
   }
-  // Atualiza partículas
-  for (let i = particulas.length - 1; i >= 0; i--) {
-    particulas[i].update();
-    particulas[i].display();
-    if (particulas[i].isDead()) {
-      particulas.splice(i, 1);
-    }
+  else {
+    drawWave(); 
   }
-
-  // =============================================
-  // ALUNO B: Flora Generativa (Waveform)
-  // =============================================
-  
-  // Desenha um "chão"
-  fill(120, 40, 15); // Verde escuro
-  rect(0, height * 0.9, width, height * 0.1);
-  
-  // Desenha duas plantas/árvores recursivas
-  // A forma de onda é passada para a função para "balançar" os galhos
-  desenharGalho(width * 0.3, height * 0.9, 120, -PI / 2, 8, waveform);
-  desenharGalho(width * 0.7, height * 0.9, 100, -PI / 2, 7, waveform);
-
-  // =============================================
-  // ALUNO C: Fauna e Energia (Amplitude)
-  // =============================================
-  
-  // Atualiza e exibe a criatura, passando a amplitude
-  aguaViva.update(amp);
-  aguaViva.display(amp);
+  drawSphere();
+  drawCube(800);
+  drawCube(5);
 }
 
-// --- Funções e Classes Auxiliares ---
+// function mousePressed() {
+//   userStartAudio(); 
+//   if (song.isPlaying()) {
+//     song.pause();
+//   } else {
+//     song.loop();
+//   }
+// }
 
-// ALUNO A: Classe Particle
-class Particle {
-  constructor(x, y) {
-    this.pos = createVector(x, y);
-    this.vel = createVector(random(-0.5, 0.5), random(-1, -2));
-    this.lifespan = 100; // 100% de vida
-    this.cor = color(50 + random(20), 100, 100); // Amarelo/Laranja
-  }
-  update() {
-    this.pos.add(this.vel);
-    this.vel.y *= 0.98; // Desacelera
-    this.lifespan -= 1.5;
-  }
-  display() {
-    noStroke();
-    fill(this.cor, this.lifespan);
-    ellipse(this.pos.x, this.pos.y, 5, 5);
-  }
-  isDead() {
-    return this.lifespan < 0;
-  }
-}
-
-// ALUNO B: Função recursiva da Planta
-function desenharGalho(x, y, len, angle, depth, onda) {
-  if (depth === 0) return;
-
-  // Pega um valor da waveform para "balançar"
-  let waveIndex = floor(map(x, 0, width, 0, onda.length));
-  let waveVal = onda[waveIndex] || 0;
-  let shake = map(waveVal, -1, 1, -5, 5) * (depth / 2); // Balanço mais forte nos galhos finos
-
-  let x2 = x + (cos(angle) * len) + shake;
-  let y2 = y + (sin(angle) * len);
-
-  strokeWeight(depth * 0.8);
-  stroke(120, 60, 100 - depth * 8, 80); // Verde
-  line(x, y, x2, y2);
-
-  // Chama a si mesma para os próximos galhos
-  desenharGalho(x2, y2, len * 0.8, angle - 0.3, depth - 1, onda);
-  desenharGalho(x2, y2, len * 0.7, angle + 0.3, depth - 1, onda);
-}
-
-// ALUNO C: Classe Jellyfish
-class Jellyfish {
-  constructor(x, y) {
-    this.pos = createVector(x, y);
-    this.vel = createVector();
-    this.acc = createVector();
-    this.noiseOffsetX = random(1000);
-    this.noiseOffsetY = random(1000);
-    this.baseSize = 100;
-  }
-
-  update(amp) {
-    // Movimento orgânico usando Perlin Noise
-    let targetX = map(noise(this.noiseOffsetX), 0, 1, 0, width);
-    let targetY = map(noise(this.noiseOffsetY), 0, 1, height * 0.2, height * 0.8);
-    let target = createVector(targetX, targetY);
-    
-    // Acelera em direção ao alvo
-    this.acc = p5.Vector.sub(target, this.pos);
-    this.acc.setMag(0.1 + amp * 0.5); // Aceleração base + boost da amplitude
-    
-    this.vel.add(this.acc);
-    this.vel.limit(1 + amp * 3); // Limite de velocidade (afeta o "arrasto")
-    this.pos.add(this.vel);
-    
-    this.noiseOffsetX += 0.005;
-    this.noiseOffsetY += 0.005;
-  }
-
-  display(amp) {
-    // Pulso baseado na amplitude
-    let pulse = map(amp, 0, 1, 0, 80);
-    let currentSize = this.baseSize + pulse;
-
-    // Desenha o corpo (forma orgânica com curveVertex)
-    noStroke();
-    fill(0, 100, 100, 30); // Vermelho/Rosa translúcido
-    
-    beginShape();
-    let steps = 10;
-    for (let i = 0; i < steps; i++) {
-      let ang = map(i, 0, steps, 0, TWO_PI);
-      // 'tremulação' na forma
-      let noiseFactor = noise(this.noiseOffsetX + i, this.noiseOffsetY);
-      let r = currentSize * 0.5 + map(noiseFactor, 0, 1, -10, 10);
-      curveVertex(this.pos.x + cos(ang) * r, this.pos.y + sin(ang) * r);
-    }
-    // Repete os 3 primeiros vértices para fechar a curva
-    curveVertex(this.pos.x + cos(0) * (currentSize * 0.5), this.pos.y + sin(0) * (currentSize * 0.5));
-    curveVertex(this.pos.x + cos(map(1, 0, steps, 0, TWO_PI)) * (currentSize * 0.5), this.pos.y + sin(map(1, 0, steps, 0, TWO_PI)) * (currentSize * 0.5));
-    curveVertex(this.pos.x + cos(map(2, 0, steps, 0, TWO_PI)) * (currentSize * 0.5), this.pos.y + sin(map(2, 0, steps, 0, TWO_PI)) * (currentSize * 0.5));
-    endShape();
-  }
-}
-
-// --- Interação ---
-function mousePressed() {
-  if (som.isPlaying()) {
-    som.pause();
+function controlSong() {
+  userStartAudio(); 
+  if (song.isPlaying()) {
+    song.pause();
   } else {
-    userStartAudio();
-    som.loop();
+    song.loop();
   }
+}
+
+function drawWave() {
+  push();
+  rotateX(waveAngle * 0.8); 
+  rotateZ(90); 
+  
+  let waveHue = map(centroid, 100, 4000, 0, 360, true);
+  let waveHeight = map(level, 0, 0.4, 10, 100);
+  let t = frameCount * 3;
+  
+  for (let b of activeBoxes) {
+    push();
+
+    let wave = sin(t + b.x * 20) * waveHeight;
+
+    translate(
+      b.x * (boxWidth + 10),
+      wave, 
+      b.y * (boxDepth + 15)
+    );
+    
+    let brightness = map(wave, -waveHeight, waveHeight, 90, 100);
+    stroke(waveHue, 100, brightness); 
+    box(boxWidth, boxHeight, boxDepth);
+
+    pop();
+  } 
+
+  pop(); 
+
+  waveAngle += 0.5;
+}
+
+function drawSphere() {
+  push();
+  noFill(); 
+  
+  let sphereHue = map(treble, 0, 150, 300, 360, true);
+  stroke(sphereHue, 90, 90);
+  strokeWeight(1);
+
+  let sphereSpeed = map(level, 0, 0.4, 0.1, 0.8, true);
+  sphereAngle += 1.5*sphereSpeed; 
+  
+  rotateZ(-90)
+  rotateY(sphereAngle * 0.8);
+  
+  sphere(sphereRadius, 24, 24); 
+  pop(); 
+}
+
+function drawCube(cubeSize) {
+  push();
+  noFill();
+  
+  let cubeHue = map(bass, 0, 255, 100, 180, true);
+  stroke(cubeHue, 80, 80, 100); 
+  strokeWeight(2);
+  
+  let baseCubeSpeed = 0.3;
+  let additionalCubeSpeed = map(treble, 0, 150, 0, 0.8, true);
+  cubeAngle += (baseCubeSpeed + additionalCubeSpeed); 
+  
+  rotateY(cubeAngle * 0.7); 
+  rotateZ(cubeAngle * 0.5);
+  
+  box(cubeSize); 
+  pop();
+}
+
+function drawParticles() {
+  
+  // cria os círculos só quando o level ultrapassa o threshold 
+  // o raio do círculo criado depende de level
+  let threshold = 0.2;
+  baseRadius = map(level, 0, 1, 5, 20);
+  if (level > threshold) {
+    circles.push({
+      radius: baseRadius,
+      alpha: 255
+    });
+  }
+  
+  let hue = map(bass, 0, 255, 0, 300);
+  for (let i = circles.length - 1; i >= 0; i--) {
+    let c = circles[i];
+    push();
+    scale(baseRadius/10)
+    stroke(hue, 100, 80, c.alpha);
+    noFill();
+    strokeWeight(1);
+    //translate(-width/2, -height/2);
+    // desenha o círculo de pontos
+    for (let j = 0; j < numPoints; j++) {
+      let angle = map(j, 0, numPoints, 0, 360);
+      let x = cos(angle) * c.radius;
+      let y = sin(angle) * c.radius;
+      point(x, y);
+    }
+    pop();
+
+    // aumenta o raio e diminui a opacidade
+    c.radius += 2.5;
+    c.alpha -= 3;
+
+    // remove quando ficar invisível
+    if (c.alpha <= 0) {
+      circles.splice(i, 1);
+    }
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
 }
